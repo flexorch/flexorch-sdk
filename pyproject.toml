@@ -30,6 +30,7 @@ dev = ["pytest>=7", "pytest-asyncio>=0.23", "respx>=0.21"]
 Homepage = "https://flexorch.com"
 Repository = "https://github.com/flexorch/flexorch-sdk"
 Issues = "https://github.com/flexorch/flexorch-sdk/issues"
+Changelog = "https://github.com/flexorch/flexorch-sdk/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flexorch_sdk"]

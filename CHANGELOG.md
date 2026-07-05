@@ -7,6 +7,27 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.0] — 2026-07-05
+
+### Added
+
+**RAG submodule (`flexorch_sdk.rag`)**
+- `RAGDocument` — text chunk with `page_content` + `metadata`; duck-type compatible with both LangChain `Document` and LlamaIndex `Document` (via `.text` property alias)
+- `FlexOrchRetriever` — LangChain-compatible retriever backed by `/v1/search`; supports `quality_threshold`, `pii_masked`, `top_k`, `mode`, `document_type`, `language` filters; implements `get_relevant_documents` and `aget_relevant_documents` shims for older LangChain versions
+- `FlexOrchReader` — LlamaIndex-compatible reader backed by `/v1/datasets/{id}/chunks`; auto-paginates, supports `min_quality` and `pii_masked_only` filters
+
+**Dataset model**
+- `Dataset.chunks(page, page_size, quality_grade, pii_masked)` — paginated RAG chunk retrieval (Pro+ plan required)
+- `hf` added to supported export formats (`Dataset.export("hf")`)
+
+**Search**
+- `client.search(query, mode=..., ...)` — new `mode` parameter (auto / hybrid / semantic / structured); passes to `/v1/search` query
+
+**Tests**
+- `tests/test_rag_helpers.py` — FlexOrchRetriever + FlexOrchReader unit tests
+
+---
+
 ## [0.1.0] — 2026-05-24
 
 Initial release.

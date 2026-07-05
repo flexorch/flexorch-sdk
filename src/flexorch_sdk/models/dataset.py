@@ -7,7 +7,7 @@ from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from .._transport import Transport
 
-_SUPPORTED_FORMATS = {"json", "jsonl", "csv", "parquet", "md", "xml", "xlsx", "rag"}
+_SUPPORTED_FORMATS = {"json", "jsonl", "csv", "parquet", "md", "xml", "xlsx", "rag", "hf"}
 
 _INDEX_STATUSES = {"not_indexed", "indexing", "ready", "failed"}
 
@@ -84,6 +84,32 @@ class Dataset:
             f"/datasets/{self.id}/export-s3",
             json={"format": format, "connector_id": connector_id, "prefix": prefix},
         )
+
+    def chunks(
+        self,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        quality_grade: str | None = None,
+        pii_masked: bool | None = None,
+    ) -> dict[str, Any]:
+        """List RAG chunks for this dataset (Pro+ required).
+
+        Args:
+            page:          Page number (1-indexed). Default: 1.
+            page_size:     Results per page (1–100). Default: 20.
+            quality_grade: Comma-separated grade filter, e.g. ``"A,B"``.
+            pii_masked:    If set, filter by whether PII was masked.
+
+        Returns:
+            Dict with ``items``, ``total``, ``page``, ``page_size``.
+        """
+        params: dict[str, Any] = {"page": page, "page_size": page_size}
+        if quality_grade is not None:
+            params["quality_grade"] = quality_grade
+        if pii_masked is not None:
+            params["pii_masked"] = str(pii_masked).lower()
+        return self._transport.get(f"/datasets/{self.id}/chunks", params=params) or {}
 
     def index(self) -> dict[str, Any]:
         """Trigger semantic indexing for this dataset (Pro+ plan required).

@@ -27,6 +27,7 @@ from .models.connector import Connector, ConnectorTestResult
 from .models.search import SearchResult
 from .resources.usage import UsageSnapshot
 from .resources.webhooks import Webhook
+from .rag import RAGDocument, FlexOrchRetriever, FlexOrchReader
 from .errors import (
     FlexOrchError,
     AuthError,
@@ -39,7 +40,7 @@ from .errors import (
     TimeoutError,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "FlexOrchClient",
@@ -50,6 +51,9 @@ __all__ = [
     "SearchResult",
     "UsageSnapshot",
     "Webhook",
+    "RAGDocument",
+    "FlexOrchRetriever",
+    "FlexOrchReader",
     "FlexOrchError",
     "AuthError",
     "QuotaError",

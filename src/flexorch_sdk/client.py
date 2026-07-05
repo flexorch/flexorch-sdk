@@ -150,6 +150,7 @@ class FlexOrchClient:
         query: str,
         *,
         top_k: int = 10,
+        mode: str = "auto",
         filters: dict[str, Any] | None = None,
     ) -> list[SearchResult]:
         """Semantic search across all indexed datasets (Pro+ plan required).
@@ -157,13 +158,15 @@ class FlexOrchClient:
         Args:
             query:   Natural language search query.
             top_k:   Number of results to return (1–50). Default: 10.
+            mode:    Search mode: ``"auto"`` | ``"semantic"`` | ``"hybrid"`` | ``"structured"``.
+                     Default: ``"auto"`` (routes by document type and plan).
             filters: Optional filter dict. Supported keys:
                      ``document_type``, ``language``, ``pii_masked``, ``quality_grade``.
 
         Returns:
             List of :class:`SearchResult` sorted by descending cosine score.
         """
-        body: dict[str, Any] = {"query": query, "top_k": top_k}
+        body: dict[str, Any] = {"query": query, "top_k": top_k, "mode": mode}
         if filters:
             body["filters"] = filters
         data = self._transport.post("/search", json=body) or {}

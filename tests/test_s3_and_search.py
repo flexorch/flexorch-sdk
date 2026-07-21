@@ -37,6 +37,20 @@ def test_connectors_create_invalid_type(client):
 
 
 @respx.mock
+def test_connectors_create_google_drive(client):
+    respx.post(f"{BASE}/connectors").mock(return_value=httpx.Response(201, json={
+        "id": "c2", "name": "Shared Invoices", "type": "google_drive",
+        "active": True, "created_at": "2026-07-21",
+    }))
+    conn = client.connectors.create(
+        "Shared Invoices", "google_drive",
+        {"folder_id": "1a2B3cD4eFgH5iJkL6mN7oP8qR9sT0uV", "credentials_json": "{}"},
+    )
+    assert conn.id == "c2"
+    assert conn.type == "google_drive"
+
+
+@respx.mock
 def test_connectors_list(client):
     respx.get(f"{BASE}/connectors").mock(return_value=httpx.Response(200, json={
         "items": [

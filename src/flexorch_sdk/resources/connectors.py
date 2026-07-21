@@ -7,7 +7,7 @@ from ..models.connector import Connector, ConnectorTestResult
 if TYPE_CHECKING:
     from .._transport import Transport
 
-_VALID_TYPES = {"s3", "gcs", "azure_blob"}
+_VALID_TYPES = {"s3", "gcs", "azure_blob", "google_drive"}
 
 
 class ConnectorsResource:
@@ -19,10 +19,12 @@ class ConnectorsResource:
 
         Args:
             name:   Display name (e.g. "Production S3").
-            type:   Connector type — "s3", "gcs", or "azure_blob".
+            type:   Connector type — "s3", "gcs", "azure_blob", or "google_drive".
             config: Provider-specific credentials dict.
                     S3 example: {"bucket": "...", "region": "...",
                                  "access_key_id": "...", "secret_access_key": "..."}
+                    Google Drive example: {"folder_id": "...", "credentials_json": "..."}
+                    (service account JSON; share the folder with its client_email first)
         """
         if type not in _VALID_TYPES:
             raise ValueError(f"Unknown connector type {type!r}. Valid: {sorted(_VALID_TYPES)}")

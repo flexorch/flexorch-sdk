@@ -7,7 +7,10 @@ from ..models.connector import Connector, ConnectorTestResult
 if TYPE_CHECKING:
     from .._transport import Transport
 
-_VALID_TYPES = {"s3", "gcs", "azure_blob", "google_drive"}
+_VALID_TYPES = {
+    "s3", "gcs", "azure_blob", "google_drive",
+    "pgvector_external", "pinecone", "qdrant",
+}
 
 
 class ConnectorsResource:
@@ -19,12 +22,18 @@ class ConnectorsResource:
 
         Args:
             name:   Display name (e.g. "Production S3").
-            type:   Connector type — "s3", "gcs", "azure_blob", or "google_drive".
+            type:   Connector type — "s3", "gcs", "azure_blob", "google_drive" (file
+                    sources), or "pgvector_external", "pinecone", "qdrant" (vector
+                    destinations for dataset indexing push_only/both modes).
             config: Provider-specific credentials dict.
                     S3 example: {"bucket": "...", "region": "...",
                                  "access_key_id": "...", "secret_access_key": "..."}
                     Google Drive example: {"folder_id": "...", "credentials_json": "..."}
                     (service account JSON; share the folder with its client_email first)
+                    Pinecone example: {"api_key": "...", "index_name": "...", "namespace": "..."}
+                    (create the index yourself first — dimension=768, metric=cosine)
+                    Qdrant example: {"url": "...", "collection_name": "...", "api_key": "..."}
+                    pgvector_external example: {"connection_string": "postgresql://..."}
         """
         if type not in _VALID_TYPES:
             raise ValueError(f"Unknown connector type {type!r}. Valid: {sorted(_VALID_TYPES)}")

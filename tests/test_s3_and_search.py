@@ -51,6 +51,48 @@ def test_connectors_create_google_drive(client):
 
 
 @respx.mock
+def test_connectors_create_pinecone(client):
+    respx.post(f"{BASE}/connectors").mock(return_value=httpx.Response(201, json={
+        "id": "c3", "name": "Prod Pinecone", "type": "pinecone",
+        "active": True, "created_at": "2026-07-21",
+    }))
+    conn = client.connectors.create(
+        "Prod Pinecone", "pinecone",
+        {"api_key": "pc-key", "index_name": "flexorch-idx"},
+    )
+    assert conn.id == "c3"
+    assert conn.type == "pinecone"
+
+
+@respx.mock
+def test_connectors_create_qdrant(client):
+    respx.post(f"{BASE}/connectors").mock(return_value=httpx.Response(201, json={
+        "id": "c4", "name": "Prod Qdrant", "type": "qdrant",
+        "active": True, "created_at": "2026-07-21",
+    }))
+    conn = client.connectors.create(
+        "Prod Qdrant", "qdrant",
+        {"url": "https://xyz.qdrant.io:6333", "collection_name": "flexorch_chunks"},
+    )
+    assert conn.id == "c4"
+    assert conn.type == "qdrant"
+
+
+@respx.mock
+def test_connectors_create_pgvector_external(client):
+    respx.post(f"{BASE}/connectors").mock(return_value=httpx.Response(201, json={
+        "id": "c5", "name": "Customer PG", "type": "pgvector_external",
+        "active": True, "created_at": "2026-07-21",
+    }))
+    conn = client.connectors.create(
+        "Customer PG", "pgvector_external",
+        {"connection_string": "postgresql://user:pass@host:5432/db"},
+    )
+    assert conn.id == "c5"
+    assert conn.type == "pgvector_external"
+
+
+@respx.mock
 def test_connectors_list(client):
     respx.get(f"{BASE}/connectors").mock(return_value=httpx.Response(200, json={
         "items": [

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "flexorch-sdk"
-version = "0.2.1"
+version = "0.2.2"
 description = "Python SDK for the FlexOrch API — process documents, build LLM-ready datasets"
 readme = "README.md"
 license = { text = "MIT" }

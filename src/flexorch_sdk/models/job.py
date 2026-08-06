@@ -23,6 +23,7 @@ class Job:
     quality_score: float | None = None
     document_id: str | None = None
     has_dataset: bool = False
+    degraded: bool = False
     failure_reason: str | None = None
     created_at: str = ""
     completed_at: str | None = None
@@ -30,6 +31,7 @@ class Job:
 
     @classmethod
     def _from_dict(cls, data: dict, transport: Transport) -> Job:
+        execution_summary = data.get("execution_summary")
         return cls(
             id=data.get("job_id") or data.get("id", ""),
             status=data.get("status", ""),
@@ -37,6 +39,13 @@ class Job:
             quality_score=data.get("quality", {}).get("score") if isinstance(data.get("quality"), dict) else data.get("quality_score"),
             document_id=data.get("document_id"),
             has_dataset=bool(data.get("has_dataset", False)),
+            # execution_summary.degraded — true when the underlying pipeline
+            # execution completed but one or more non-critical steps failed
+            # (e.g. structured extraction couldn't find a table in the
+            # document). The job still succeeds and quality/PII results are
+            # still meaningful, but structured `records`/columns may be
+            # empty. Not present for jobs with no execution (e.g. dataset_build).
+            degraded=bool(execution_summary.get("degraded", False)) if isinstance(execution_summary, dict) else False,
             failure_reason=data.get("failure_reason"),
             created_at=data.get("created_at", ""),
             completed_at=data.get("completed_at"),

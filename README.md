@@ -145,6 +145,9 @@ print(job.status)        # "completed"
 print(job.quality_grade) # "A" | "B" | "C" | "D"
 print(job.quality_score) # 0.0 – 1.0
 print(job.has_dataset)   # True
+print(job.degraded)      # False — True if structured extraction failed but
+                          # the job still completed (PII/quality results are
+                          # still meaningful; job.wait() does not raise for this)
 ```
 
 ---

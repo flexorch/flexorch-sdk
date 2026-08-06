@@ -71,6 +71,40 @@ def test_wait_raises_on_timeout(transport):
 
 
 @respx.mock
+def test_wait_surfaces_degraded_from_execution_summary(transport):
+    from flexorch_sdk.models.job import Job
+
+    respx.get(f"{BASE}/jobs/j1").mock(
+        return_value=httpx.Response(200, json={
+            "job_id": "j1",
+            "status": "completed",
+            "execution_summary": {"execution_id": 1, "status": "completed", "degraded": True},
+        })
+    )
+
+    job = Job(id="j1", status="queued", _transport=transport)
+    result = job.wait(poll_interval=0)
+    assert result.degraded is True
+
+
+def test_degraded_defaults_to_false_without_execution_summary():
+    from flexorch_sdk.models.job import Job
+
+    job = Job._from_dict({"job_id": "j1", "status": "completed"}, transport=None)
+    assert job.degraded is False
+
+
+def test_degraded_false_when_execution_summary_says_false():
+    from flexorch_sdk.models.job import Job
+
+    job = Job._from_dict(
+        {"job_id": "j1", "status": "completed", "execution_summary": {"degraded": False}},
+        transport=None,
+    )
+    assert job.degraded is False
+
+
+@respx.mock
 def test_dataset_returns_none_when_no_dataset(transport):
     from flexorch_sdk.models.job import Job
     job = Job(id="j1", status="completed", has_dataset=False, _transport=transport)

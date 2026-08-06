@@ -97,3 +97,17 @@ def test_process_many(tmp_path, client):
     jobs = client.process_many([tmp_path / "a.pdf", tmp_path / "b.pdf"])
     assert len(jobs) == 2
     assert all(j.id == "job-x" for j in jobs)
+
+
+def test_version_matches_pyproject():
+    # Regression guard: __version__ drifted from pyproject.toml for two
+    # releases (stuck at 0.2.0 while pyproject.toml moved to 0.2.2) with no
+    # test to catch it.
+    import re
+    import pathlib
+    import flexorch_sdk
+
+    pyproject = pathlib.Path(__file__).parent.parent / "pyproject.toml"
+    match = re.search(r'^version = "([^"]+)"', pyproject.read_text(), re.MULTILINE)
+    assert match is not None
+    assert flexorch_sdk.__version__ == match.group(1)

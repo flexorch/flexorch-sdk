@@ -6,6 +6,7 @@ import httpx
 from flexorch_sdk import FlexOrchClient, RAGDocument, FlexOrchRetriever, FlexOrchReader
 from flexorch_sdk.models.dataset import Dataset
 from flexorch_sdk.rag import _grade_and_above
+from conftest import envelope
 
 BASE = "https://api.flexorch.com/v1"
 
@@ -59,12 +60,12 @@ def test_grade_and_above_d():
 
 @respx.mock
 def test_dataset_chunks_basic(client):
-    respx.get(f"{BASE}/datasets/d1/chunks").mock(return_value=httpx.Response(200, json={
+    respx.get(f"{BASE}/datasets/d1/chunks").mock(return_value=httpx.Response(200, json=envelope({
         "items": [CHUNK_ITEM],
         "total": 1,
         "page": 1,
         "page_size": 20,
-    }))
+    })))
     ds = Dataset(id="d1", name="test", slug="test", status="ready", _transport=client._transport)
     result = ds.chunks()
     assert result["total"] == 1
@@ -73,9 +74,9 @@ def test_dataset_chunks_basic(client):
 
 @respx.mock
 def test_dataset_chunks_with_filters(client):
-    route = respx.get(f"{BASE}/datasets/d1/chunks").mock(return_value=httpx.Response(200, json={
+    route = respx.get(f"{BASE}/datasets/d1/chunks").mock(return_value=httpx.Response(200, json=envelope({
         "items": [], "total": 0, "page": 1, "page_size": 20,
-    }))
+    })))
     ds = Dataset(id="d1", name="test", slug="test", status="ready", _transport=client._transport)
     ds.chunks(quality_grade="A,B", pii_masked=True)
     assert route.called
@@ -96,9 +97,9 @@ def test_retriever_repr(client):
 
 @respx.mock
 def test_retriever_invoke_basic(client):
-    respx.post(f"{BASE}/search").mock(return_value=httpx.Response(200, json={
+    respx.post(f"{BASE}/search").mock(return_value=httpx.Response(200, json=envelope({
         "results": [SEARCH_RESULT],
-    }))
+    })))
     retriever = FlexOrchRetriever(client)
     docs = retriever.invoke("invoice amount")
     assert len(docs) == 1
@@ -111,9 +112,9 @@ def test_retriever_invoke_basic(client):
 @respx.mock
 def test_retriever_grade_filter_excludes_low_grade(client):
     low_grade_result = {**SEARCH_RESULT, "metadata": {"quality_grade": "D"}}
-    respx.post(f"{BASE}/search").mock(return_value=httpx.Response(200, json={
+    respx.post(f"{BASE}/search").mock(return_value=httpx.Response(200, json=envelope({
         "results": [low_grade_result],
-    }))
+    })))
     retriever = FlexOrchRetriever(client, quality_threshold="B")
     docs = retriever.invoke("anything")
     assert docs == []
@@ -122,9 +123,9 @@ def test_retriever_grade_filter_excludes_low_grade(client):
 @respx.mock
 def test_retriever_grade_filter_allows_equal_grade(client):
     b_grade_result = {**SEARCH_RESULT, "metadata": {"quality_grade": "B"}}
-    respx.post(f"{BASE}/search").mock(return_value=httpx.Response(200, json={
+    respx.post(f"{BASE}/search").mock(return_value=httpx.Response(200, json=envelope({
         "results": [b_grade_result],
-    }))
+    })))
     retriever = FlexOrchRetriever(client, quality_threshold="B")
     docs = retriever.invoke("anything")
     assert len(docs) == 1
@@ -132,9 +133,9 @@ def test_retriever_grade_filter_allows_equal_grade(client):
 
 @respx.mock
 def test_retriever_get_relevant_documents_compat(client):
-    respx.post(f"{BASE}/search").mock(return_value=httpx.Response(200, json={
+    respx.post(f"{BASE}/search").mock(return_value=httpx.Response(200, json=envelope({
         "results": [SEARCH_RESULT],
-    }))
+    })))
     retriever = FlexOrchRetriever(client)
     docs = retriever.get_relevant_documents("test")
     assert len(docs) == 1
@@ -153,12 +154,12 @@ def test_reader_invalid_min_quality(client):
 
 @respx.mock
 def test_reader_load_data_single_page(client):
-    respx.get(f"{BASE}/datasets/42/chunks").mock(return_value=httpx.Response(200, json={
+    respx.get(f"{BASE}/datasets/42/chunks").mock(return_value=httpx.Response(200, json=envelope({
         "items": [CHUNK_ITEM],
         "total": 1,
         "page": 1,
         "page_size": 100,
-    }))
+    })))
     reader = FlexOrchReader(client)
     docs = reader.load_data("42")
     assert len(docs) == 1
@@ -185,8 +186,8 @@ def test_reader_load_data_paginated(client):
     }
     respx.get(f"{BASE}/datasets/42/chunks").mock(
         side_effect=[
-            httpx.Response(200, json=page1),
-            httpx.Response(200, json=page2),
+            httpx.Response(200, json=envelope(page1)),
+            httpx.Response(200, json=envelope(page2)),
         ]
     )
     reader = FlexOrchReader(client)
@@ -196,9 +197,9 @@ def test_reader_load_data_paginated(client):
 
 @respx.mock
 def test_reader_pii_masked_only(client):
-    route = respx.get(f"{BASE}/datasets/42/chunks").mock(return_value=httpx.Response(200, json={
+    route = respx.get(f"{BASE}/datasets/42/chunks").mock(return_value=httpx.Response(200, json=envelope({
         "items": [], "total": 0, "page": 1, "page_size": 100,
-    }))
+    })))
     FlexOrchReader(client).load_data("42", pii_masked_only=True)
     assert route.called
 
@@ -207,9 +208,9 @@ def test_reader_pii_masked_only(client):
 
 @respx.mock
 def test_search_mode_passed(client):
-    route = respx.post(f"{BASE}/search").mock(return_value=httpx.Response(200, json={
+    route = respx.post(f"{BASE}/search").mock(return_value=httpx.Response(200, json=envelope({
         "results": [],
-    }))
+    })))
     client.search("query", mode="semantic")
     assert route.called
     sent = route.calls[0].request
@@ -220,7 +221,7 @@ def test_search_mode_passed(client):
 
 @respx.mock
 def test_search_default_mode_is_auto(client):
-    route = respx.post(f"{BASE}/search").mock(return_value=httpx.Response(200, json={"results": []}))
+    route = respx.post(f"{BASE}/search").mock(return_value=httpx.Response(200, json=envelope({"results": []})))
     client.search("query")
     body = __import__("json").loads(route.calls[0].request.content)
     assert body["mode"] == "auto"

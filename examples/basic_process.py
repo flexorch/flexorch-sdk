@@ -9,7 +9,7 @@ job = client.process("contract.pdf", locale="tr").wait()
 print(f"Quality grade : {job.quality_grade}")
 print(f"Quality score : {job.quality_score}")
 
-dataset = job.dataset()
+dataset = job.build_dataset().wait().dataset()
 if dataset:
     dataset.export("jsonl", path="output.jsonl")
     print(f"Exported {dataset.row_count} rows → output.jsonl")

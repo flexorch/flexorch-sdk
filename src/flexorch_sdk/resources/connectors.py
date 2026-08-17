@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from ..models.connector import Connector, ConnectorTestResult
+from ..models.connector import Connector, ConnectorTestResult, SyncLog, SyncSchedule
 
 if TYPE_CHECKING:
     from .._transport import Transport
@@ -63,3 +63,43 @@ class ConnectorsResource:
         """
         data = self._t.post(f"/connectors/{connector_id}/test")
         return ConnectorTestResult._from_dict(data or {})
+
+    def create_schedule(
+        self,
+        connector_id: str,
+        cron_expression: str,
+        prefix_filter: str | None = None,
+    ) -> SyncSchedule:
+        """Define a scheduled sync for a connector (Pro+ required).
+
+        Args:
+            connector_id:    ID of an active connector.
+            cron_expression: e.g. "0 2 * * *" for every night at 02:00.
+            prefix_filter:   Only pull keys matching this prefix; None = all.
+        """
+        data = self._t.post(
+            f"/connectors/{connector_id}/schedules",
+            json={"cron_expression": cron_expression, "prefix_filter": prefix_filter},
+        )
+        return SyncSchedule._from_dict(data or {})
+
+    def list_schedules(self, connector_id: str) -> list[SyncSchedule]:
+        """Return active schedules for a connector."""
+        data = self._t.get(f"/connectors/{connector_id}/schedules")
+        items = data if isinstance(data, list) else []
+        return [SyncSchedule._from_dict(item) for item in items]
+
+    def delete_schedule(self, connector_id: str, schedule_id: str) -> None:
+        """Delete a scheduled sync."""
+        self._t.delete(f"/connectors/{connector_id}/schedules/{schedule_id}")
+
+    def trigger_schedule(self, connector_id: str, schedule_id: str) -> SyncLog:
+        """Run a schedule immediately instead of waiting for its cron time."""
+        data = self._t.post(f"/connectors/{connector_id}/schedules/{schedule_id}/trigger")
+        return SyncLog._from_dict(data or {})
+
+    def schedule_logs(self, connector_id: str, schedule_id: str) -> list[SyncLog]:
+        """Return recent sync run logs for a schedule."""
+        data = self._t.get(f"/connectors/{connector_id}/schedules/{schedule_id}/logs")
+        items = data if isinstance(data, list) else []
+        return [SyncLog._from_dict(item) for item in items]

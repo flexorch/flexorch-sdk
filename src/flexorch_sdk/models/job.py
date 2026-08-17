@@ -7,12 +7,33 @@ from typing import TYPE_CHECKING, Any
 from ..errors import JobFailedError, TimeoutError
 
 if TYPE_CHECKING:
-    from .dataset import Dataset
     from .._transport import Transport
+    from .dataset import Dataset
 
 _TERMINAL_STATUSES = {"completed", "failed"}
 _DEFAULT_POLL_INTERVAL = 2
 _DEFAULT_TIMEOUT = 300
+
+
+@dataclass
+class JobFeedback:
+    id: str
+    job_id: str
+    rating: str
+    issue: str | None
+    notes: str | None
+    created_at: str = ""
+
+    @classmethod
+    def _from_dict(cls, data: dict) -> JobFeedback:
+        return cls(
+            id=str(data.get("id", "")),
+            job_id=str(data.get("job_id", "")),
+            rating=data.get("rating", ""),
+            issue=data.get("issue"),
+            notes=data.get("notes"),
+            created_at=data.get("created_at", ""),
+        )
 
 
 @dataclass
@@ -22,6 +43,7 @@ class Job:
     quality_grade: str | None = None
     quality_score: float | None = None
     document_id: str | None = None
+    execution_id: int | None = None
     has_dataset: bool = False
     degraded: bool = False
     failure_reason: str | None = None
@@ -32,13 +54,27 @@ class Job:
     @classmethod
     def _from_dict(cls, data: dict, transport: Transport) -> Job:
         execution_summary = data.get("execution_summary")
+        processing_summary = data.get("processing_summary")
+        quality = data.get("quality")
+        if not isinstance(quality, dict) and isinstance(processing_summary, dict):
+            quality = processing_summary.get("quality")
         return cls(
-            id=data.get("job_id") or data.get("id", ""),
+            id=str(data.get("job_id") or data.get("id", "")),
             status=data.get("status", ""),
-            quality_grade=data.get("quality", {}).get("grade") if isinstance(data.get("quality"), dict) else data.get("quality_grade"),
-            quality_score=data.get("quality", {}).get("score") if isinstance(data.get("quality"), dict) else data.get("quality_score"),
+            quality_grade=quality.get("grade") if isinstance(quality, dict) else data.get("quality_grade"),
+            quality_score=quality.get("score") if isinstance(quality, dict) else data.get("quality_score"),
             document_id=data.get("document_id"),
-            has_dataset=bool(data.get("has_dataset", False)),
+            # execution_summary.execution_id (data_process jobs) or
+            # processing_summary.execution_id (raw UI job shape) — needed by
+            # build_dataset() to call POST /datasets/build-from-execution/{id}.
+            execution_id=(
+                (execution_summary.get("execution_id") if isinstance(execution_summary, dict) else None)
+                or (processing_summary.get("execution_id") if isinstance(processing_summary, dict) else None)
+                or data.get("execution_id")
+            ),
+            has_dataset=bool(data.get("has_dataset", False)) or bool(
+                isinstance(processing_summary, dict) and processing_summary.get("has_dataset")
+            ),
             # execution_summary.degraded — true when the underlying pipeline
             # execution completed but one or more non-critical steps failed
             # (e.g. structured extraction couldn't find a table in the
@@ -89,6 +125,50 @@ class Job:
         if not items:
             return None
         return Dataset._from_dict(items[0], self._transport)
+
+    def build_dataset(
+        self,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        slug: str | None = None,
+        force_rebuild: bool = False,
+        replace_existing: bool = False,
+    ) -> Job:
+        """Build a dataset from this job's execution.
+
+        A completed data_process job does not have a dataset yet — building
+        one is a separate, explicit step (``POST
+        /datasets/build-from-execution/{execution_id}``). Call this after
+        ``.wait()``, then ``.wait()`` again on the returned dataset_build
+        Job before calling ``.dataset()``::
+
+            job = client.process("invoice.pdf").wait()
+            dataset = job.build_dataset().wait().dataset()
+
+        Raises:
+            ValueError: If this job has no execution to build from (e.g. it
+                failed, or is itself a dataset_build job).
+        """
+        if not self.execution_id:
+            raise ValueError(
+                f"Job {self.id!r} has no execution_id to build a dataset from "
+                "(job must be a completed data_process job)."
+            )
+        body: dict[str, Any] = {
+            "force_rebuild": force_rebuild,
+            "replace_existing": replace_existing,
+        }
+        if name is not None:
+            body["name"] = name
+        if description is not None:
+            body["description"] = description
+        if slug is not None:
+            body["slug"] = slug
+        data = self._transport.post(
+            f"/datasets/build-from-execution/{self.execution_id}", json=body
+        )
+        return Job._from_dict(data, self._transport)
 
     def __repr__(self) -> str:
         return f"Job(id={self.id!r}, status={self.status!r}, grade={self.quality_grade!r})"

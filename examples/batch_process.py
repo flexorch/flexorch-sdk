@@ -13,7 +13,7 @@ jobs = client.process_many(files, locale="und")
 for job in jobs:
     try:
         job.wait(timeout=300)
-        ds = job.dataset()
+        ds = job.build_dataset().wait().dataset()
         if ds:
             ds.export("jsonl", path=f"output/{ds.slug}.jsonl")
             print(f"  ✓ {ds.name} — {ds.row_count} rows (grade {job.quality_grade})")

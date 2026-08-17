@@ -11,7 +11,7 @@ They return RAGDocument objects that are duck-type compatible with:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .client import FlexOrchClient
@@ -73,7 +73,7 @@ class FlexOrchRetriever:
 
     def __init__(
         self,
-        client: "FlexOrchClient",
+        client: FlexOrchClient,
         *,
         quality_threshold: str = "B",
         pii_masked: bool | None = None,
@@ -178,7 +178,7 @@ class FlexOrchReader:
         index = VectorStoreIndex.from_documents(documents)
     """
 
-    def __init__(self, client: "FlexOrchClient") -> None:
+    def __init__(self, client: FlexOrchClient) -> None:
         self._client = client
 
     def load_data(

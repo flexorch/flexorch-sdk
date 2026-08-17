@@ -30,7 +30,7 @@ jobs = client.process_from_s3(conn.id, keys, locale="de")
 for job in jobs:
     try:
         job.wait(timeout=300)
-        ds = job.dataset()
+        ds = job.build_dataset().wait().dataset()
         if ds:
             # Export result back to S3
             push = ds.export_to_s3(conn.id, "jsonl", prefix="processed/")

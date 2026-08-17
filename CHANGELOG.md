@@ -7,6 +7,31 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.3.0] — 2026-08-17
+
+### Fixed (critical — the SDK did not work against the real API before this release)
+
+- **`Transport` never unwrapped the `{status, data, error}` envelope every `/v1/*` endpoint returns** — every resource method received the raw envelope instead of its `data` payload, so parsed fields (`job.id`, `dataset.name`, ...) were silently wrong or empty. Fixed centrally in `Transport._request()`. The test suite's mocked fixtures previously modeled the *unwrapped* shape too, so this was never caught — all fixtures now mock the real wrapped responses.
+- `FlexOrchClient.process()` sent the uploaded file under multipart field name `"file"` — the backend expects `"files"` (plural) and silently drops anything else, returning `400 MISSING_INPUT`. Fixed.
+- `FlexOrchClient.process()` / `process_from_s3()` parsed the response as a single `Job` — the real `/data-process/async` response is `{accepted, rejected, jobs: [...]}` (the same multi-file-capable shape the UI uses). Now correctly unpacks `jobs[0]`, and raises `ValidationError` with the real rejection reason if the file was rejected instead of accepted.
+- `Dataset.export()` called `GET /datasets/{id}/export?format=X` — the real route is `GET /datasets/{id}/export/{fmt}` (`fmt` is a path segment). Fixed; also added the `min_quality` param for `format="rag"`.
+- `UsageResource.current()` called the non-existent `/usage/current` — the real endpoint is `GET /usage`, with a differently-shaped (nested `trial`/`usage.credits`) response. `UsageSnapshot` fields updated to match; `reset_at`/`period_start`/`period_end` (which the real API never returned) replaced with `is_trial`/`trial_ends_at`/`trial_days_remaining`.
+
+### Added
+
+- **`Job.build_dataset()`** / **`DatasetsResource.build_from_execution()`** — building a dataset from a completed job's execution is a separate, explicit API call (`POST /datasets/build-from-execution/{execution_id}`); it was previously undocumented and unreachable from the SDK, so `job.dataset()` on a fresh job always returned `None`. `Job.execution_id` is now parsed from `execution_summary`/`processing_summary`.
+- `Dataset.rows()`, `Dataset.profile()`, `Dataset.compliance_report()` — row preview, quality/privacy profile, and KVKK/GDPR compliance report.
+- `DocumentsResource` (`client.documents.get()` / `.list()`) and `Document.reprocess()`.
+- `ConnectorsResource` scheduled-sync methods: `create_schedule()`, `list_schedules()`, `delete_schedule()`, `trigger_schedule()`, `schedule_logs()`.
+- `JobsResource.submit_feedback()` / `.get_feedback()`.
+- `UsageResource.history()`, `.quality_trend()`, `.rate_limits()`.
+
+### Changed
+
+- README quick start and all `examples/*.py` updated to include the now-required `job.build_dataset().wait()` step before `.dataset()`.
+
+---
+
 ## [0.2.3] — 2026-08-06
 
 ### Added

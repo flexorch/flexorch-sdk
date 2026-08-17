@@ -34,8 +34,8 @@ job = client.process("contract.pdf", locale="tr").wait()
 print(job.quality_grade)   # "A"
 print(job.quality_score)   # 0.91
 
-# Download the resulting dataset
-dataset = job.dataset()
+# Build a dataset from the job, then download it
+dataset = job.build_dataset().wait().dataset()
 dataset.export("jsonl", path="output.jsonl")
 ```
 
@@ -74,14 +74,16 @@ Get your API key from [app.flexorch.com](https://app.flexorch.com) → Settings.
 
 ## Export formats
 
-`json` · `jsonl` · `csv` · `parquet` · `md` · `xml` · `xlsx` · `rag`
+`json` · `jsonl` · `csv` · `parquet` · `md` · `xml` · `xlsx` · `rag` · `hf`
 
 ```python
 dataset.export("jsonl", path="output.jsonl")   # write to file
 raw = dataset.export("parquet")                # return bytes
+dataset.export("rag", min_quality="B")         # only A/B-grade chunks
 ```
 
 The `rag` format produces LlamaIndex/LangChain-compatible chunks with metadata.
+The `hf` format is a zip archive readable with `datasets.load_from_disk()`.
 
 ---
 
@@ -144,7 +146,8 @@ job = client.process("large-report.pdf").wait(
 print(job.status)        # "completed"
 print(job.quality_grade) # "A" | "B" | "C" | "D"
 print(job.quality_score) # 0.0 – 1.0
-print(job.has_dataset)   # True
+print(job.has_dataset)   # False — no dataset exists yet, see below
+print(job.execution_id)  # needed by build_dataset() / build_from_execution()
 print(job.degraded)      # False — True if structured extraction failed but
                           # the job still completed (PII/quality results are
                           # still meaningful; job.wait() does not raise for this)
@@ -152,10 +155,22 @@ print(job.degraded)      # False — True if structured extraction failed but
 
 ---
 
+## Building a dataset
+
+A completed job does not have a dataset until you build one — this is a
+separate, explicit step (it's what lets you build one dataset from several
+jobs, or re-run it with `force_rebuild=True`):
+
+```python
+job = client.process("contract.pdf").wait()
+
+build_job = job.build_dataset(name="contracts-q1")  # or client.datasets.build_from_execution(job.execution_id, ...)
+ds = build_job.wait().dataset()
+```
+
 ## Dataset operations
 
 ```python
-ds = job.dataset()          # fetch dataset linked to this job
 ds = client.datasets.get("dataset-id")
 
 print(ds.name)              # "contract-2024-q1"
@@ -173,6 +188,11 @@ print(push["size_bytes"])   # 84320
 # Semantic indexing (Pro+)
 ds.index()
 status = ds.index_status()  # {"status": "ready", "chunks_indexed": 48}
+
+# Preview rows, quality/privacy profile, KVKK/GDPR compliance report
+rows = ds.rows(page=1, page_size=50)
+profile = ds.profile()
+report = ds.compliance_report()   # Pro+ required
 ```
 
 ---
@@ -203,6 +223,13 @@ for r in results:
 # Jobs
 jobs = client.jobs.list(page=1, page_size=20)
 job  = client.jobs.get("job-id")
+client.jobs.submit_feedback("job-id", "down", issue="missing_fields", notes="PO number not extracted")
+feedback = client.jobs.get_feedback("job-id")  # None if not submitted yet
+
+# Documents
+docs = client.documents.list(page=1, page_size=20)
+doc  = client.documents.get("document-id")     # includes processing_history, related_datasets
+reprocess_job = doc.reprocess()
 
 # Datasets
 datasets = client.datasets.list()
@@ -210,8 +237,13 @@ ds       = client.datasets.get("dataset-id")
 
 # Usage
 usage = client.usage.current()
-print(f"{usage.credits_used} / {usage.credits_limit} credits used")
-print(f"Plan: {usage.plan}  —  resets {usage.reset_at}")
+print(f"{usage.credits_used} / {usage.credits_limit} credits used  (plan: {usage.plan})")
+if usage.is_trial:
+    print(f"{usage.trial_days_remaining} trial days left")
+
+history = client.usage.history(period="30d")        # daily credits + job counts
+trend   = client.usage.quality_trend(period="30d")   # daily avg quality score
+limits  = client.usage.rate_limits()                 # current window usage, doesn't consume a slot
 
 # Webhooks
 client.webhooks.register("https://your-server.com/hook", events=["dataset.ready"])
@@ -224,6 +256,13 @@ client.connectors.list()
 client.connectors.get("connector-id")
 client.connectors.test("connector-id")
 client.connectors.delete("connector-id")
+
+# Connector schedules (Pro+)
+schedule = client.connectors.create_schedule("connector-id", "0 2 * * *", prefix_filter="invoices/")
+client.connectors.list_schedules("connector-id")
+client.connectors.trigger_schedule("connector-id", schedule.id)   # run now instead of waiting for cron
+client.connectors.schedule_logs("connector-id", schedule.id)
+client.connectors.delete_schedule("connector-id", schedule.id)
 ```
 
 ---

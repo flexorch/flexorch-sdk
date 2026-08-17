@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .._transport import Transport
@@ -38,13 +38,21 @@ class Dataset:
             _transport=transport,
         )
 
-    def export(self, format: str, path: str | Path | None = None) -> bytes:
+    def export(
+        self,
+        format: str,
+        path: str | Path | None = None,
+        *,
+        min_quality: str | None = None,
+    ) -> bytes:
         """Download dataset in the requested format.
 
         Args:
-            format: One of json, jsonl, csv, parquet, md, xml, xlsx, rag.
-            path:   If given, write bytes to this file and return them.
-                    If None, return raw bytes without writing.
+            format:      One of json, jsonl, csv, parquet, md, xml, xlsx, rag, hf.
+            path:        If given, write bytes to this file and return them.
+                         If None, return raw bytes without writing.
+            min_quality: Only applies to format="rag" — minimum chunk grade
+                         (A/B/C/D) to include, e.g. "B" includes A and B chunks.
 
         Returns:
             Raw file content as bytes.
@@ -52,9 +60,13 @@ class Dataset:
         if format not in _SUPPORTED_FORMATS:
             raise ValueError(f"Unsupported format {format!r}. Choose from: {sorted(_SUPPORTED_FORMATS)}")
 
+        params: dict[str, Any] = {}
+        if min_quality is not None:
+            params["min_quality"] = min_quality
+
         raw = self._transport.get_bytes(
-            f"/datasets/{self.id}/export",
-            params={"format": format},
+            f"/datasets/{self.id}/export/{format}",
+            params=params,
         )
 
         if path is not None:
@@ -127,6 +139,58 @@ class Dataset:
             ``chunks_indexed``, and ``total_chunks``.
         """
         return self._transport.get(f"/datasets/{self.id}/index/status") or {}
+
+    def rows(
+        self,
+        *,
+        page: int = 1,
+        page_size: int = 50,
+        q: str | None = None,
+    ) -> dict[str, Any]:
+        """Preview dataset rows.
+
+        Args:
+            page:      Page number (1-indexed). Default: 1.
+            page_size: Results per page (1-200). Default: 50.
+            q:         Optional full-text search filter.
+
+        Returns:
+            Dict with ``columns``, ``rows``, and ``pagination``.
+        """
+        params: dict[str, Any] = {"page": page, "page_size": page_size}
+        if q is not None:
+            params["q"] = q
+        return self._transport.get(f"/datasets/{self.id}/rows", params=params) or {}
+
+    def profile(self) -> dict[str, Any]:
+        """Return the quality/privacy profile for this dataset.
+
+        Only available once the dataset ``status`` is "ready".
+
+        Returns:
+            Dict with ``quality`` (grade_distribution, avg_score,
+            below_threshold_count), ``privacy`` (pii_findings_count,
+            masked_record_count, clean_record_count), ``formats``, ``columns``.
+        """
+        return self._transport.get(f"/datasets/{self.id}/profile") or {}
+
+    def compliance_report(self, format: str = "json") -> dict[str, Any] | bytes:
+        """Return the KVKK/GDPR processing transparency report (Pro+ required).
+
+        Args:
+            format: "json" (default) or "pdf" (requires the server's PDF
+                    renderer to be available).
+
+        Returns:
+            Dict for format="json"; raw PDF bytes for format="pdf".
+        """
+        if format == "pdf":
+            return self._transport.get_bytes(
+                f"/datasets/{self.id}/compliance-report", params={"format": "pdf"}
+            )
+        return self._transport.get(
+            f"/datasets/{self.id}/compliance-report", params={"format": format}
+        ) or {}
 
     def __repr__(self) -> str:
         return f"Dataset(id={self.id!r}, name={self.name!r}, rows={self.row_count}, status={self.status!r})"

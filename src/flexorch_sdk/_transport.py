@@ -21,6 +21,23 @@ _DEFAULT_MAX_RETRIES = 3
 _RETRY_STATUSES = {429, 500, 502, 503, 504}
 
 
+def _unwrap(body: Any) -> Any:
+    """Strip the standard {status, data, error} envelope every /v1/* endpoint returns.
+
+    See dev-docs/api-reference.md "Standart Response Wrapper" — success and accepted
+    responses both carry the payload under `data`. Endpoints that don't match this
+    shape (or already look unwrapped) are returned as-is.
+    """
+    if (
+        isinstance(body, dict)
+        and "data" in body
+        and "error" in body
+        and isinstance(body.get("status"), str)
+    ):
+        return body["data"]
+    return body
+
+
 def _parse_error(response: httpx.Response) -> FlexOrchError:
     status = response.status_code
     try:
@@ -61,7 +78,7 @@ class Transport:
         self._client = httpx.Client(
             headers={
                 "X-API-KEY": api_key,
-                "User-Agent": "flexorch-sdk-python/0.1.0",
+                "User-Agent": "flexorch-sdk-python/0.3.0",
             },
             timeout=timeout,
         )
@@ -92,7 +109,7 @@ class Transport:
 
             if response.status_code == 204 or not response.content:
                 return None
-            return response.json()
+            return _unwrap(response.json())
 
         raise FlexOrchError(f"Request failed after {self._max_retries} attempts: {last_exc}")
 
@@ -119,5 +136,5 @@ class Transport:
     def __enter__(self) -> Transport:
         return self
 
-    def __exit__(self, *_: Any) -> None:
+    def __exit__(self, *_: object) -> None:
         self.close()

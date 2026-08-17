@@ -5,15 +5,31 @@ from pathlib import Path
 from typing import Any
 
 from ._transport import Transport
+from .errors import ValidationError
 from .models.job import Job
 from .models.search import SearchResult
-from .resources.jobs import JobsResource
+from .resources.connectors import ConnectorsResource
 from .resources.datasets import DatasetsResource
+from .resources.documents import DocumentsResource
+from .resources.jobs import JobsResource
 from .resources.usage import UsageResource
 from .resources.webhooks import WebhooksResource
-from .resources.connectors import ConnectorsResource
 
 _DEFAULT_BASE_URL = "https://api.flexorch.com/v1"
+
+
+def _first_job_or_raise(upload_response: dict[str, Any], filename: str, transport: Transport) -> Job:
+    """Unpack a single-file /data-process/async response into its Job.
+
+    The endpoint always returns {accepted, rejected, jobs: [...]} even for a
+    single file (it's the same multi-file-capable response the UI uses).
+    """
+    jobs = upload_response.get("jobs") or []
+    if jobs:
+        return Job._from_dict(jobs[0], transport)
+    rejected = upload_response.get("rejected") or []
+    reason = rejected[0].get("error") if rejected else "unknown error"
+    raise ValidationError(f"{filename} was rejected: {reason}")
 
 
 class FlexOrchClient:
@@ -31,7 +47,8 @@ class FlexOrchClient:
         from flexorch_sdk import FlexOrchClient
 
         client = FlexOrchClient("fx_your_key_here")
-        dataset = client.process("contract.pdf", locale="tr").wait().dataset()
+        job = client.process("contract.pdf", locale="tr").wait()
+        dataset = job.build_dataset().wait().dataset()
         dataset.export("jsonl", path="output.jsonl")
     """
 
@@ -58,6 +75,7 @@ class FlexOrchClient:
 
         self.jobs = JobsResource(self._transport)
         self.datasets = DatasetsResource(self._transport)
+        self.documents = DocumentsResource(self._transport)
         self.usage = UsageResource(self._transport)
         self.webhooks = WebhooksResource(self._transport)
         self.connectors = ConnectorsResource(self._transport)
@@ -92,11 +110,14 @@ class FlexOrchClient:
         with path.open("rb") as fh:
             data = self._transport.post(
                 "/data-process/async",
-                files={"file": (path.name, fh, "application/octet-stream")},
+                # Backend param is `files: list[UploadFile]` — the multipart
+                # field name must be "files" (plural), not "file", or FastAPI
+                # never binds it and the request 400s with MISSING_INPUT.
+                files={"files": (path.name, fh, "application/octet-stream")},
                 data=form,
             )
 
-        return Job._from_dict(data, self._transport)
+        return _first_job_or_raise(data, path.name, self._transport)
 
     def process_many(
         self,
@@ -142,7 +163,7 @@ class FlexOrchClient:
             if pipeline_config:
                 form["pipeline_config"] = _json.dumps(pipeline_config)
             data = self._transport.post("/data-process/async", data=form)
-            jobs.append(Job._from_dict(data, self._transport))
+            jobs.append(_first_job_or_raise(data, key, self._transport))
         return jobs
 
     def search(
@@ -180,7 +201,7 @@ class FlexOrchClient:
     def __enter__(self) -> FlexOrchClient:
         return self
 
-    def __exit__(self, *_: Any) -> None:
+    def __exit__(self, *_: object) -> None:
         self.close()
 
     def __repr__(self) -> str:

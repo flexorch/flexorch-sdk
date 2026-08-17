@@ -4,6 +4,7 @@ import respx
 import httpx
 
 from flexorch_sdk import FlexOrchClient, AuthError, ValidationError, FlexOrchError
+from conftest import accepted
 
 BASE = "https://api.flexorch.com/v1"
 
@@ -40,17 +41,23 @@ def test_process_returns_job(tmp_path, client):
     pdf = tmp_path / "contract.pdf"
     pdf.write_bytes(b"%PDF fake content")
 
-    respx.post(f"{BASE}/data-process/async").mock(
-        return_value=httpx.Response(202, json={
-            "job_id": "job-123",
-            "status": "queued",
-            "document_id": "doc-456",
-        })
+    route = respx.post(f"{BASE}/data-process/async").mock(
+        return_value=httpx.Response(202, json=accepted({
+            "accepted": 1,
+            "rejected": [],
+            "jobs": [{"filename": "contract.pdf", "job_id": "job-123", "status": "queued", "document_id": "doc-456"}],
+        }))
     )
 
     job = client.process(pdf)
     assert job.id == "job-123"
     assert job.status == "queued"
+
+    # Regression guard: the multipart field name must be "files" (plural) —
+    # the backend param is `files: list[UploadFile]` and silently drops
+    # anything sent under a different field name (400 MISSING_INPUT).
+    sent = route.calls[0].request
+    assert b'name="files"' in sent.content
 
 
 @respx.mock
@@ -86,12 +93,35 @@ def test_process_422_raises_validation_error(tmp_path, client):
 
 
 @respx.mock
+def test_process_rejected_raises_validation_error(tmp_path, client):
+    # 202 Accepted but the single file ended up in `rejected`, not `jobs`
+    # (e.g. it failed a lighter-weight validation than the 422 path above).
+    pdf = tmp_path / "x.csv"
+    pdf.write_bytes(b"data")
+
+    respx.post(f"{BASE}/data-process/async").mock(
+        return_value=httpx.Response(202, json=accepted({
+            "accepted": 0,
+            "rejected": [{"filename": "x.csv", "error": "UNSUPPORTED_FILE"}],
+            "jobs": [],
+        }))
+    )
+
+    with pytest.raises(ValidationError, match="UNSUPPORTED_FILE"):
+        client.process(pdf)
+
+
+@respx.mock
 def test_process_many(tmp_path, client):
     for name in ["a.pdf", "b.pdf"]:
         (tmp_path / name).write_bytes(b"data")
 
     respx.post(f"{BASE}/data-process/async").mock(
-        return_value=httpx.Response(202, json={"job_id": "job-x", "status": "queued"})
+        return_value=httpx.Response(202, json=accepted({
+            "accepted": 1,
+            "rejected": [],
+            "jobs": [{"filename": "x", "job_id": "job-x", "status": "queued"}],
+        }))
     )
 
     jobs = client.process_many([tmp_path / "a.pdf", tmp_path / "b.pdf"])

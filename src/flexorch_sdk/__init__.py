@@ -9,8 +9,8 @@ flexorch-sdk — Python SDK for the FlexOrch API.
     job = client.process("contract.pdf", locale="tr").wait()
     print(job.quality_grade)   # "A"
 
-    # Download the dataset as JSONL
-    dataset = job.dataset()
+    # Build a dataset from the job, then download it as JSONL
+    dataset = job.build_dataset().wait().dataset()
     dataset.export("jsonl", path="output.jsonl")
 
     # Or use the context manager
@@ -21,47 +21,60 @@ flexorch-sdk — Python SDK for the FlexOrch API.
 """
 
 from .client import FlexOrchClient
-from .models.job import Job
-from .models.dataset import Dataset
-from .models.connector import Connector, ConnectorTestResult
-from .models.search import SearchResult
-from .resources.usage import UsageSnapshot
-from .resources.webhooks import Webhook
-from .rag import RAGDocument, FlexOrchRetriever, FlexOrchReader
 from .errors import (
-    FlexOrchError,
     AuthError,
+    FlexOrchError,
+    JobFailedError,
+    NotFoundError,
     QuotaError,
     RateLimitError,
-    NotFoundError,
-    ValidationError,
     ServerError,
-    JobFailedError,
     TimeoutError,
+    ValidationError,
 )
+from .models.connector import Connector, ConnectorTestResult, SyncLog, SyncSchedule
+from .models.dataset import Dataset
+from .models.document import Document
+from .models.job import Job, JobFeedback
+from .models.search import SearchResult
+from .rag import FlexOrchReader, FlexOrchRetriever, RAGDocument
+from .resources.usage import (
+    QualityTrendItem,
+    RateLimitStatus,
+    UsageHistoryItem,
+    UsageSnapshot,
+)
+from .resources.webhooks import Webhook
 
-__version__ = "0.2.3"
+__version__ = "0.3.0"
 
 __all__ = [
-    "FlexOrchClient",
-    "Job",
-    "Dataset",
+    "AuthError",
     "Connector",
     "ConnectorTestResult",
-    "SearchResult",
-    "UsageSnapshot",
-    "Webhook",
-    "RAGDocument",
-    "FlexOrchRetriever",
-    "FlexOrchReader",
+    "Dataset",
+    "Document",
+    "FlexOrchClient",
     "FlexOrchError",
-    "AuthError",
-    "QuotaError",
-    "RateLimitError",
-    "NotFoundError",
-    "ValidationError",
-    "ServerError",
+    "FlexOrchReader",
+    "FlexOrchRetriever",
+    "Job",
     "JobFailedError",
+    "JobFeedback",
+    "NotFoundError",
+    "QualityTrendItem",
+    "QuotaError",
+    "RAGDocument",
+    "RateLimitError",
+    "RateLimitStatus",
+    "SearchResult",
+    "ServerError",
+    "SyncLog",
+    "SyncSchedule",
     "TimeoutError",
+    "UsageHistoryItem",
+    "UsageSnapshot",
+    "ValidationError",
+    "Webhook",
     "__version__",
 ]

@@ -66,7 +66,7 @@ class JobFailedError(FlexOrchError):
         self.failure_reason = reason
 
 
-class TimeoutError(FlexOrchError):  # noqa: A001
+class TimeoutError(FlexOrchError):
     """job.wait() exceeded the requested timeout without completing."""
 
     def __init__(self, job_id: str, timeout: int) -> None:

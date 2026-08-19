@@ -7,7 +7,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.3.0] — 2026-08-19
+## [0.3.1] — 2026-08-19
+
+### Fixed
+
+- **`job.build_dataset().wait().dataset()` — the exact chain this README documents — returned `None` even after the dataset was built successfully.** A completed `dataset_build` job reports its output via `dataset_summary.dataset_id`; neither top-level `has_dataset` nor `processing_summary` (which `Job.dataset()` relied on) is ever set for that job type, so the built dataset was unreachable from the job that built it. `Job._from_dict()` now reads `dataset_id` from `dataset_summary`, and `Job.dataset()` fetches `/datasets/{dataset_id}` directly when it's known. Found by exercising the documented one-liner against the live API — none of the mocked fixtures modeled a real `dataset_build` completion response.
+
+---
+
+## [0.3.0] — 2026-08-17
 
 ### Fixed (critical — the SDK did not work against the real API before this release)
 
@@ -16,7 +24,6 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - `FlexOrchClient.process()` / `process_from_s3()` parsed the response as a single `Job` — the real `/data-process/async` response is `{accepted, rejected, jobs: [...]}` (the same multi-file-capable shape the UI uses). Now correctly unpacks `jobs[0]`, and raises `ValidationError` with the real rejection reason if the file was rejected instead of accepted.
 - `Dataset.export()` called `GET /datasets/{id}/export?format=X` — the real route is `GET /datasets/{id}/export/{fmt}` (`fmt` is a path segment). Fixed; also added the `min_quality` param for `format="rag"`.
 - `UsageResource.current()` called the non-existent `/usage/current` — the real endpoint is `GET /usage`, with a differently-shaped (nested `trial`/`usage.credits`) response. `UsageSnapshot` fields updated to match; `reset_at`/`period_start`/`period_end` (which the real API never returned) replaced with `is_trial`/`trial_ends_at`/`trial_days_remaining`.
-- **`job.build_dataset().wait().dataset()` — the exact chain this README documents — returned `None` even after the dataset was built successfully.** A completed `dataset_build` job reports its output via `dataset_summary.dataset_id`; neither top-level `has_dataset` nor `processing_summary` (which `Job.dataset()` relied on) is ever set for that job type, so the built dataset was unreachable from the job that built it. `Job._from_dict()` now reads `dataset_id` from `dataset_summary`, and `Job.dataset()` fetches `/datasets/{dataset_id}` directly when it's known. Found by exercising the documented one-liner against the live API — none of the mocked fixtures modeled a real `dataset_build` completion response.
 
 ### Added
 

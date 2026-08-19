@@ -44,6 +44,7 @@ class Job:
     quality_score: float | None = None
     document_id: str | None = None
     execution_id: int | None = None
+    dataset_id: int | None = None
     has_dataset: bool = False
     degraded: bool = False
     failure_reason: str | None = None
@@ -55,6 +56,7 @@ class Job:
     def _from_dict(cls, data: dict, transport: Transport) -> Job:
         execution_summary = data.get("execution_summary")
         processing_summary = data.get("processing_summary")
+        dataset_summary = data.get("dataset_summary")
         quality = data.get("quality")
         if not isinstance(quality, dict) and isinstance(processing_summary, dict):
             quality = processing_summary.get("quality")
@@ -72,9 +74,17 @@ class Job:
                 or (processing_summary.get("execution_id") if isinstance(processing_summary, dict) else None)
                 or data.get("execution_id")
             ),
+            # dataset_summary.dataset_id — present on a completed dataset_build
+            # job's response (build_dataset() polls this job type). It's the
+            # only place that job type reports the dataset it produced;
+            # neither top-level has_dataset nor processing_summary is set for
+            # dataset_build jobs, so without this .dataset() always returned
+            # None for the job.build_dataset().wait().dataset() chain even
+            # though the dataset had been built successfully.
+            dataset_id=dataset_summary.get("dataset_id") if isinstance(dataset_summary, dict) else None,
             has_dataset=bool(data.get("has_dataset", False)) or bool(
                 isinstance(processing_summary, dict) and processing_summary.get("has_dataset")
-            ),
+            ) or isinstance(dataset_summary, dict),
             # execution_summary.degraded — true when the underlying pipeline
             # execution completed but one or more non-critical steps failed
             # (e.g. structured extraction couldn't find a table in the
@@ -117,6 +127,10 @@ class Job:
     def dataset(self) -> Dataset | None:
         """Return the dataset built from this job, if one exists."""
         from .dataset import Dataset
+
+        if self.dataset_id is not None:
+            data = self._transport.get(f"/datasets/{self.dataset_id}")
+            return Dataset._from_dict(data, self._transport)
 
         if not self.has_dataset:
             return None

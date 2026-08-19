@@ -168,3 +168,49 @@ def test_build_dataset_without_execution_id_raises(transport):
     job = Job(id="j1", status="completed", execution_id=None, _transport=transport)
     with pytest.raises(ValueError, match="execution_id"):
         job.build_dataset()
+
+
+@respx.mock
+def test_build_dataset_wait_dataset_end_to_end(transport):
+    """job.build_dataset().wait().dataset() — the exact chain the README and
+    class docstring document — must resolve to the built Dataset.
+
+    A completed dataset_build job reports its output via
+    `dataset_summary.dataset_id`; it never sets top-level `has_dataset` or
+    `processing_summary` (those are data_process-job-only fields). Before this
+    fixture existed, that gap wasn't modeled and .dataset() always returned
+    None for this exact chain despite the dataset having been built.
+    """
+    from flexorch_sdk.models.job import Job
+
+    respx.post(f"{BASE}/datasets/build-from-execution/106").mock(
+        return_value=httpx.Response(202, json=accepted({
+            "job_id": "146", "job_type": "dataset_build", "status": "queued", "reference_id": 106,
+        }))
+    )
+    respx.get(f"{BASE}/jobs/146").mock(
+        return_value=httpx.Response(200, json=envelope({
+            "id": 146,
+            "job_type": "dataset_build",
+            "status": "completed",
+            "dataset_summary": {
+                "dataset_id": 28, "name": "dataset_execution_106",
+                "slug": "dataset-execution-106", "status": "ready",
+                "version": 1, "row_count": 1,
+            },
+        }))
+    )
+    dataset_route = respx.get(f"{BASE}/datasets/28").mock(
+        return_value=httpx.Response(200, json=envelope({
+            "id": 28, "name": "dataset_execution_106", "slug": "dataset-execution-106",
+            "status": "ready", "row_count": 1,
+        }))
+    )
+
+    job = Job(id="145", status="completed", execution_id=106, _transport=transport)
+    ds = job.build_dataset().wait(poll_interval=0).dataset()
+
+    assert dataset_route.called
+    assert ds is not None
+    assert ds.id == 28
+    assert ds.status == "ready"

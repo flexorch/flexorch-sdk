@@ -7,6 +7,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.3.2] — 2026-09-03
+
+### Added
+
+- **`Job` and `Dataset` now expose `pii_masked`, `pii_findings_count`, and `pii_type_summary`.** The API already returned this data (`execution_summary.privacy` on job polling, `privacy` on dataset detail) but `_from_dict()` silently dropped it — neither model had any `pii_*` field at all. `pii_type_summary` is a per-type breakdown (e.g. `{"email": 2, "national_id_tr": 1}`) covering all 47 PII types the platform detects. `Job` reads from `execution_summary.privacy` (computed fresh on every read, so this works even for jobs older than this change); `Dataset` reads from the `privacy` block on `GET /datasets/{id}` and falls back to the flatter `GET /datasets` list shape (which has no per-type breakdown, so `pii_type_summary` is `{}` for list-sourced datasets).
+
+---
+
 ## [0.3.1] — 2026-08-19
 
 ### Fixed

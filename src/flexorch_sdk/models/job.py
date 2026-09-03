@@ -48,6 +48,9 @@ class Job:
     has_dataset: bool = False
     degraded: bool = False
     failure_reason: str | None = None
+    pii_masked: bool = False
+    pii_findings_count: int = 0
+    pii_type_summary: dict[str, int] = field(default_factory=dict)
     created_at: str = ""
     completed_at: str | None = None
     _transport: Any = field(default=None, repr=False)
@@ -57,6 +60,7 @@ class Job:
         execution_summary = data.get("execution_summary")
         processing_summary = data.get("processing_summary")
         dataset_summary = data.get("dataset_summary")
+        privacy = execution_summary.get("privacy") if isinstance(execution_summary, dict) else None
         quality = data.get("quality")
         if not isinstance(quality, dict) and isinstance(processing_summary, dict):
             quality = processing_summary.get("quality")
@@ -93,6 +97,14 @@ class Job:
             # empty. Not present for jobs with no execution (e.g. dataset_build).
             degraded=bool(execution_summary.get("degraded", False)) if isinstance(execution_summary, dict) else False,
             failure_reason=data.get("failure_reason"),
+            # execution_summary.privacy — computed fresh on every read
+            # (GET /v1/jobs/{id}), not frozen at job-completion time, so it
+            # stays correct even for jobs that predate a given PII detector
+            # change. pii_type_summary defaults to {} for jobs with no
+            # execution (e.g. dataset_build) or against an older API version.
+            pii_masked=bool(privacy.get("privacy_applied", False)) if isinstance(privacy, dict) else False,
+            pii_findings_count=privacy.get("pii_findings_count", 0) if isinstance(privacy, dict) else 0,
+            pii_type_summary=dict(privacy.get("pii_type_summary", {})) if isinstance(privacy, dict) else {},
             created_at=data.get("created_at", ""),
             completed_at=data.get("completed_at"),
             _transport=transport,

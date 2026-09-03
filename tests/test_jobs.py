@@ -214,3 +214,40 @@ def test_build_dataset_wait_dataset_end_to_end(transport):
     assert ds is not None
     assert ds.id == 28
     assert ds.status == "ready"
+
+
+def test_pii_fields_from_execution_summary_privacy(transport):
+    from flexorch_sdk.models.job import Job
+
+    data = envelope({
+        "job_id": "j1",
+        "status": "completed",
+        "execution_summary": {
+            "execution_id": 106,
+            "status": "completed",
+            "degraded": False,
+            "failure_reason": None,
+            "privacy": {
+                "pii_findings_count": 3,
+                "privacy_applied": True,
+                "masked_record_count": 1,
+                "pii_type_summary": {"email": 2, "national_id_tr": 1},
+            },
+        },
+    })["data"]
+    job = Job._from_dict(data, transport)
+
+    assert job.pii_masked is True
+    assert job.pii_findings_count == 3
+    assert job.pii_type_summary == {"email": 2, "national_id_tr": 1}
+
+
+def test_pii_fields_default_when_no_execution_summary(transport):
+    from flexorch_sdk.models.job import Job
+
+    data = envelope({"job_id": "j1", "status": "queued"})["data"]
+    job = Job._from_dict(data, transport)
+
+    assert job.pii_masked is False
+    assert job.pii_findings_count == 0
+    assert job.pii_type_summary == {}

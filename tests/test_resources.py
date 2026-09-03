@@ -41,6 +41,38 @@ def test_datasets_get(client):
 
 
 @respx.mock
+def test_datasets_get_pii_fields_from_privacy_block(client):
+    respx.get(f"{BASE}/datasets/d1").mock(return_value=httpx.Response(200, json=envelope({
+        "id": "d1", "name": "My Dataset", "slug": "my-ds", "status": "ready", "row_count": 42,
+        "privacy": {
+            "privacy_applied": True,
+            "pii_findings_count": 3,
+            "pii_type_summary": {"email": 2, "national_id_tr": 1},
+        },
+    })))
+    ds = client.datasets.get("d1")
+    assert ds.pii_masked is True
+    assert ds.pii_findings_count == 3
+    assert ds.pii_type_summary == {"email": 2, "national_id_tr": 1}
+
+
+@respx.mock
+def test_datasets_list_pii_fields_fall_back_to_top_level(client):
+    # GET /datasets (list) has pii_findings_count/privacy_applied at the top
+    # level, no nested `privacy` block and no pii_type_summary at all.
+    respx.get(f"{BASE}/datasets").mock(return_value=httpx.Response(200, json=envelope({
+        "items": [
+            {"id": "d1", "name": "A", "slug": "a", "status": "ready", "row_count": 5,
+             "pii_findings_count": 1, "privacy_applied": True},
+        ]
+    })))
+    datasets = client.datasets.list()
+    assert datasets[0].pii_masked is True
+    assert datasets[0].pii_findings_count == 1
+    assert datasets[0].pii_type_summary == {}
+
+
+@respx.mock
 def test_dataset_export(client):
     respx.get(f"{BASE}/datasets").mock(return_value=httpx.Response(200, json=envelope({
         "items": [{"id": "d1", "name": "A", "slug": "a", "status": "ready", "row_count": 1}]

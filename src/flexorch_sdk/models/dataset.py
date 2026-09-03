@@ -19,6 +19,9 @@ class Dataset:
     slug: str
     status: str
     row_count: int = 0
+    pii_masked: bool = False
+    pii_findings_count: int = 0
+    pii_type_summary: dict[str, int] = field(default_factory=dict)
     created_at: str = ""
     available_formats: list[str] = field(default_factory=list)
     _transport: Any = field(default=None, repr=False)
@@ -27,12 +30,28 @@ class Dataset:
     def _from_dict(cls, data: dict, transport: Transport) -> Dataset:
         fmt_summary = data.get("format_summary", {})
         formats = list(fmt_summary.get("files", {}).keys()) if isinstance(fmt_summary, dict) else []
+        # GET /datasets/{id} nests these under `privacy` (incl. pii_type_summary);
+        # GET /datasets (list) has pii_findings_count/privacy_applied at the top
+        # level instead and has no per-type breakdown at all — fall back
+        # accordingly so Dataset objects work from either response shape.
+        privacy = data.get("privacy")
+        if isinstance(privacy, dict):
+            pii_masked = bool(privacy.get("privacy_applied", False))
+            pii_findings_count = privacy.get("pii_findings_count") or 0
+            pii_type_summary = dict(privacy.get("pii_type_summary", {}))
+        else:
+            pii_masked = bool(data.get("privacy_applied", False))
+            pii_findings_count = data.get("pii_findings_count") or 0
+            pii_type_summary = {}
         return cls(
             id=data.get("id", ""),
             name=data.get("name", ""),
             slug=data.get("slug", ""),
             status=data.get("status", ""),
             row_count=data.get("row_count", 0),
+            pii_masked=pii_masked,
+            pii_findings_count=pii_findings_count,
+            pii_type_summary=pii_type_summary,
             created_at=data.get("created_at", ""),
             available_formats=formats,
             _transport=transport,

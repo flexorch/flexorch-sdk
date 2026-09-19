@@ -7,6 +7,17 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.3.3] — 2026-09-19
+
+### Added
+
+- **`Connector.config`** — non-secret config fields (bucket/region, `folder_id`, `index_name`, etc.). `serialize_connector()` always returned this on the backend, but the SDK model dropped it entirely, so a caller couldn't tell which bucket/index a connector pointed to without inspecting the raw HTTP response. Credentials are never included.
+- **`Webhook.secret`** — the one-time signing secret returned by `POST /webhooks` was silently dropped by the SDK. Only present on the response from `register()`; `list()`/`get()` never return it.
+- **`Webhook.auto_export`** and a matching `auto_export` parameter on `WebhooksResource.register()`** — push the finished dataset to a connector automatically on `dataset.ready` delivery. The backend already accepted this; the SDK had no way to send it.
+- **`quota.warning`** added to `WebhookEvent`'s valid event set — a real, documented backend event that the SDK's own client-side validation was rejecting before the request was even sent.
+
+---
+
 ## [0.3.2] — 2026-09-03
 
 ### Added

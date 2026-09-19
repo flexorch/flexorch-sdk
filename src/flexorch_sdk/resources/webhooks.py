@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .._transport import Transport
 
-_VALID_EVENTS = {"dataset.ready", "job.completed", "job.failed"}
+_VALID_EVENTS = {"dataset.ready", "job.completed", "job.failed", "quota.warning"}
 
 
 @dataclass
@@ -16,6 +16,10 @@ class Webhook:
     events: list[str]
     active: bool
     created_at: str
+    auto_export: dict[str, Any] | None = None
+    secret: str | None = None
+    """Signing secret — only present on the response from register(). Store it
+    securely; it is never returned again by list()/get()."""
 
     @classmethod
     def _from_dict(cls, data: dict) -> Webhook:
@@ -25,6 +29,8 @@ class Webhook:
             events=data.get("events", []),
             active=data.get("active", True),
             created_at=data.get("created_at", ""),
+            auto_export=data.get("auto_export"),
+            secret=data.get("secret"),
         )
 
     def __repr__(self) -> str:
@@ -35,17 +41,29 @@ class WebhooksResource:
     def __init__(self, transport: Transport) -> None:
         self._t = transport
 
-    def register(self, url: str, events: list[str]) -> Webhook:
+    def register(
+        self,
+        url: str,
+        events: list[str],
+        auto_export: dict[str, Any] | None = None,
+    ) -> Webhook:
         """Register a new webhook endpoint.
 
         Args:
             url:    HTTPS URL that will receive POST requests.
             events: List of event types, e.g. ["dataset.ready"].
+            auto_export: Optional, only meaningful with the "dataset.ready" event —
+                automatically push the finished dataset to a connector on delivery.
+                Shape: {"connector_id": int, "format": str, "prefix": str (optional,
+                default "exports/")}.
         """
         invalid = set(events) - _VALID_EVENTS
         if invalid:
             raise ValueError(f"Unknown event types: {invalid}. Valid: {_VALID_EVENTS}")
-        data = self._t.post("/webhooks", json={"url": url, "events": events})
+        payload: dict[str, Any] = {"url": url, "events": events}
+        if auto_export is not None:
+            payload["auto_export"] = auto_export
+        data = self._t.post("/webhooks", json=payload)
         return Webhook._from_dict(data)
 
     def list(self) -> list[Webhook]:

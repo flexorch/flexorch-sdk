@@ -117,6 +117,29 @@ def test_connectors_get(client):
 
 
 @respx.mock
+def test_connectors_get_includes_config(client):
+    """Regression: serialize_connector() always returns a non-secret `config`
+    dict (bucket/region, folder_id, index_name, ...) — the SDK model dropped
+    it entirely, so a caller couldn't tell which bucket/index a connector
+    pointed to without inspecting the raw HTTP response."""
+    respx.get(f"{BASE}/connectors/c1").mock(return_value=httpx.Response(200, json=envelope({
+        "id": "c1", "name": "Prod S3", "type": "s3", "active": True, "created_at": "",
+        "config": {"bucket": "my-bucket", "region": "eu-central-1"},
+    })))
+    conn = client.connectors.get("c1")
+    assert conn.config == {"bucket": "my-bucket", "region": "eu-central-1"}
+
+
+@respx.mock
+def test_connectors_list_defaults_config_to_empty_dict(client):
+    respx.get(f"{BASE}/connectors").mock(return_value=httpx.Response(200, json=envelope({
+        "items": [{"id": "c1", "name": "Prod S3", "type": "s3", "active": True, "created_at": ""}]
+    })))
+    connectors = client.connectors.list()
+    assert connectors[0].config == {}
+
+
+@respx.mock
 def test_connectors_delete(client):
     respx.delete(f"{BASE}/connectors/c1").mock(return_value=httpx.Response(204))
     client.connectors.delete("c1")

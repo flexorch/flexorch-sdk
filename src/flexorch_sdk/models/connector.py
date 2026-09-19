@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -12,6 +13,9 @@ class Connector:
     last_tested_at: str | None = None
     last_used_at: str | None = None
     created_at: str = ""
+    config: dict[str, Any] = field(default_factory=dict)
+    """Non-secret config fields (bucket/region, folder_id, index_name, etc.) —
+    credentials are never included."""
 
     @classmethod
     def _from_dict(cls, data: dict) -> Connector:
@@ -23,6 +27,7 @@ class Connector:
             last_tested_at=data.get("last_tested_at"),
             last_used_at=data.get("last_used_at"),
             created_at=data.get("created_at", ""),
+            config=data.get("config") or {},
         )
 
     def __repr__(self) -> str:

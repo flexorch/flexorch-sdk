@@ -282,6 +282,60 @@ def test_webhooks_delete(client):
     client.webhooks.delete("wh-1")
 
 
+def test_webhooks_register_accepts_quota_warning_event(client):
+    """Regression: quota.warning is a real, documented VALID_EVENTS member on
+    the backend — the SDK's own client-side validation was rejecting it before
+    the request was even sent."""
+    with respx.mock:
+        respx.post(f"{BASE}/webhooks").mock(return_value=httpx.Response(201, json=envelope({
+            "id": "wh-2", "url": "https://example.com/hook",
+            "events": ["quota.warning"], "active": True, "created_at": "2026-05-24",
+        })))
+        wh = client.webhooks.register("https://example.com/hook", events=["quota.warning"])
+    assert wh.events == ["quota.warning"]
+
+
+@respx.mock
+def test_webhooks_register_returns_secret(client):
+    """Regression: the one-time signing secret returned by POST /webhooks was
+    silently dropped — a caller had no way to retrieve it through the SDK."""
+    respx.post(f"{BASE}/webhooks").mock(return_value=httpx.Response(201, json=envelope({
+        "id": "wh-3", "url": "https://example.com/hook", "events": ["job.completed"],
+        "active": True, "created_at": "2026-05-24", "secret": "abc123signingsecret",
+    })))
+    wh = client.webhooks.register("https://example.com/hook", events=["job.completed"])
+    assert wh.secret == "abc123signingsecret"
+
+
+@respx.mock
+def test_webhooks_list_omits_secret(client):
+    """list()/get() never return the secret (backend only shows it once, on create)."""
+    respx.get(f"{BASE}/webhooks").mock(return_value=httpx.Response(200, json=envelope({
+        "items": [{"id": "wh-1", "url": "https://x.com", "events": [], "active": True, "created_at": ""}]
+    })))
+    hooks = client.webhooks.list()
+    assert hooks[0].secret is None
+
+
+@respx.mock
+def test_webhooks_register_sends_auto_export(client):
+    """Regression: auto_export (push the finished dataset to a connector on
+    dataset.ready) was accepted by the backend but had no SDK parameter at all."""
+    route = respx.post(f"{BASE}/webhooks").mock(return_value=httpx.Response(201, json=envelope({
+        "id": "wh-4", "url": "https://example.com/hook", "events": ["dataset.ready"],
+        "active": True, "created_at": "2026-05-24",
+        "auto_export": {"connector_id": 7, "format": "jsonl", "prefix": "out/"},
+    })))
+    wh = client.webhooks.register(
+        "https://example.com/hook",
+        events=["dataset.ready"],
+        auto_export={"connector_id": 7, "format": "jsonl", "prefix": "out/"},
+    )
+    assert wh.auto_export == {"connector_id": 7, "format": "jsonl", "prefix": "out/"}
+    sent_body = route.calls[0].request.content
+    assert b"auto_export" in sent_body
+
+
 # ── Jobs resource ──────────────────────────────────────────────────────────────
 
 @respx.mock
